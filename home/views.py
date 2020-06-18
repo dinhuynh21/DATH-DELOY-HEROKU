@@ -7,6 +7,9 @@ from django.shortcuts import redirect, render
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.core.mail import send_mail
+from datetime import datetime
+from datetime import timedelta
+from openpyxl import Workbook
 from django.http import Http404
 from django.contrib.auth.models import Group
 
@@ -21,7 +24,62 @@ def error404(request, *args, **kwargs):
 
 def error500(request, *args, **kwargs):
     return render(request,'pages/500.html')
+def export_movies_to_xlsx(request):
+    """
+    Downloads all movies as Excel file with a single worksheet
+    """
+    student_queryset = Student.objects.all()
+    
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    response['Content-Disposition'] = 'attachment; filename={date}-movies.xlsx'.format(
+        date=datetime.now().strftime('%Y-%m-%d'),
+    )
+    workbook = Workbook()
+    
+    # Get active worksheet/tab
+    worksheet = workbook.active
+    worksheet.title = 'Students'
 
+    # Define the titles for columns
+    columns = [
+        'ID',
+        'Title',
+        'Description',
+        'Length',
+        'Rating',
+        'Price',
+    ]
+    row_num = 1
+
+    # Assign the titles for each cell of the header
+    for col_num, column_title in enumerate(columns, 1):
+        cell = worksheet.cell(row=row_num, column=col_num)
+        cell.value = column_title
+
+    # Iterate through all movies
+    for movie in student_queryset:
+        row_num += 1
+        
+        # Define the data for each cell in the row 
+        row = [
+            movie.pk,
+            movie.fullname,
+            movie.phonenumber,
+            movie.classname,
+            movie.create_date,
+            movie.active,
+        ]
+        
+        # Assign the data for each cell of the row 
+        for col_num, cell_value in enumerate(row, 1):
+            cell = worksheet.cell(row=row_num, column=col_num)
+            cell.value = cell_value
+
+    workbook.save(response)
+
+    return response
 # Create your views here.
 @unauthenticated_login
 def loginPage(request):
@@ -231,6 +289,7 @@ def checkinClassStudent(request,pk):
 
         return redirect('listclass')
     schedule = Schedule.objects.all()
+    export_movies_to_xlsx(request)
     context={'checkinclass':checkinclass,'timeshift':timeshift,'liststudentinclass':liststudentinclass,'pk':pk, 'classname':classname, 'schedule':schedule}
     return render(request,'class/checkinClassStudent.html',context)
 
@@ -242,6 +301,7 @@ def listStudent(request):
     form = CreateStudentForm()
     liststudent = Student.objects.all()
     listclass = Classname.objects.all()
+    export_movies_to_xlsx(request)
     for i1 in listclass:
         startdate = datetime.strptime(str(i1.startdate), '%Y-%m-%d')
         today = datetime.now()
